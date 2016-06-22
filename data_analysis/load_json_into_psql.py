@@ -13,110 +13,101 @@ except:
     print "Install psycopg2"
     exit(123)
  
-try:
-    import progressbar
-except:
-    print "Install progressbar2"
-    exit(123)
+# try:
+#     import progressbar
+# except:
+#     print "Install progressbar2"
+#     exit(123)
  
 import json
+
+#----------
+# class ProgressInfo:
  
-import logging
+#     def __init__(self, dir):
+#         files_no = 0
+#         for root, dirs, files in os.walk(dir):
+#             for file in files:
+#                 if file.endswith(".json"):
+#                     files_no += 1
+#         self.files_no = files_no
+#         print "Found {} files to process".format(self.files_no)
+#         self.bar = progressbar.ProgressBar(maxval=self.files_no,
+#                                            widgets=[' [', progressbar.Timer(), '] [', progressbar.ETA(), '] ', progressbar.Bar(),])
+ 
+#     def update(self, file_counter):
+#         self.bar.update(file_counter)
+
+#---------- 
 logger = logging.getLogger()
  
-PG_CONN_STRING = "dbname='test_yelp' port='5432'"
- 
-data_dir = "test_data"
-dbconn = pg.connect(PG_CONN_STRING)
- 
+# data_dir = 'test_data'
+data_dir = '/Users/deanliu/git/GalvanizeDSI/capstone_project/data/Yelp/yelp_dataset_challenge_academic_dataset'
 logger.info("Loading data from '{}'".format(data_dir))
- 
+
+PG_CONN_STRING = "dbname='test_yelp' user='deanliu' host='localhost' port='5432'"
+dbconn = pg.connect(PG_CONN_STRING)
 cursor = dbconn.cursor()
  
-counter = 0
-empty_files = []
- 
-class ProgressInfo:
- 
-    def __init__(self, dir):
-        files_no = 0
-        for root, dirs, files in os.walk(dir):
-            for file in files:
-                if file.endswith(".json"):
-                    files_no += 1
-        self.files_no = files_no
-        print "Found {} files to process".format(self.files_no)
-        self.bar = progressbar.ProgressBar(maxval=self.files_no,
-                                           widgets=[' [', progressbar.Timer(), '] [', progressbar.ETA(), '] ', progressbar.Bar(),])
- 
-    def update(self, counter):
-        self.bar.update(counter)
- 
-pi = ProgressInfo(os.path.expanduser(data_dir))
- 
+file_counter = 0
+
+# pi = ProgressInfo(os.path.expanduser(data_dir))
+
+
+# --- created SQL table ---
+'''
+CREATE TABLE test_yelp_checkin (
+id INTEGER PRIMARY KEY,
+data JSONB NOT NULL
+);
+'''
+cursor.execute('''CREATE TABLE checkins (id INTEGER PRIMARY KEY, data JSONB NOT NULL);''')
+cursor.execute('''CREATE TABLE businesses (id INTEGER PRIMARY KEY, data JSONB NOT NULL);''')
+cursor.execute('''CREATE TABLE reviews (id INTEGER PRIMARY KEY, data JSONB NOT NULL);''')
+cursor.execute('''CREATE TABLE tips (id INTEGER PRIMARY KEY, data JSONB NOT NULL);''')
+cursor.execute('''CREATE TABLE users (id INTEGER PRIMARY KEY, data JSONB NOT NULL);''')
+
 for root, dirs, files in os.walk(os.path.expanduser(data_dir)):
     # print files
+
     for f in files:
         fname = os.path.join(root, f)
-        # print fname
- 
-        if not fname.endswith(".json"):
+
+        if not fname.endswith(".json"): # skip non-json files
             continue
 
+        print 'Processing file: {}'.format(fname)
+        # pi.update(file_counter)
+        file_counter += 1
+
         with open(fname) as js_file:
-            # for line in js_file:
 
-            # data = json.load(line)
-            data = js_file.read()
-            if not data:
-                empty_files.append(fname)
-                continue
-            # print data, counter
-            # print type(data)
-            # import json
-            # dd = json.loads(data)
-            counter += 1
-            pi.update(counter)
+            for line_count, js_line in enumerate(js_file):
+                # print line_count, js_line
+                js_type = json.loads(js_line)['type']
 
-            if True:
-                # --- psql ver 9.5.x ---
-                cursor.execute("""
-                                INSERT INTO test_yelp(data)
-                                VALUES (%s)
-                                ON CONFLICT ON CONSTRAINT no_overlapping_jsons DO NOTHING
-                            """, (data, ))
-            else:
-                # --- psql ver 9.4.x ---
-                cursor.execute("""
-                                INSERT INTO stats_data(data)
-                                SELECT %s
-                                WHERE NOT EXISTS (SELECT 42
-                                                  FROM stats_data
-                                                  WHERE
-                                                        ((data->>'metadata')::json->>'country')  = %s
-                                                    AND ((data->>'metadata')::json->>'installation') = %s
-                                                    AND tstzrange(
-                                                            to_timestamp((data->>'start_ts')::double precision),
-                                                            to_timestamp((data->>'end_ts'  )::double precision)
-                                                        ) &&
-                                                        tstzrange(
-                                                            to_timestamp(%s::text::double precision),
-                                                            to_timestamp(%s::text::double precision)
-                                                        )
-                                                 )
-                            """, (data, str(dd['metadata']['country']), str(dd['metadata']['installation']), str(dd['start_ts']), str(dd['end_ts'])))
- 
-print ""
- 
+                if js_type == 'checkin':
+                    cursor.execute("""INSERT INTO checkins(id, data) VALUES (%s, %s);""", (line_count, js_line))
+                elif js_type == 'business':
+                    cursor.execute("""INSERT INTO businesses(id, data) VALUES (%s, %s);""", (line_count, js_line))
+                elif js_type == 'review':
+                    cursor.execute("""INSERT INTO reviews(id, data) VALUES (%s, %s);""", (line_count, js_line))
+                elif js_type == 'tip':
+                    cursor.execute("""INSERT INTO tips(id, data) VALUES (%s, %s);""", (line_count, js_line))
+                elif js_type == 'user':
+                    cursor.execute("""INSERT INTO users(id, data) VALUES (%s, %s);""", (line_count, js_line))
+                else: # no js_typ match, FAULT!
+                    pass
+        dbconn.commit() # <--- this line saved my butt!
+
+    # pi.update(file_counter)
+
+  
 logger.debug("Refreshing materialized views")
-cursor.execute("""REFRESH MATERIALIZED VIEW sessions""");
-cursor.execute("""ANALYZE""");
+# cursor.execute("""REFRESH MATERIALIZED VIEW sessions""");
+# cursor.execute("""ANALYZE""");
  
 dbconn.commit()
+dbconn.close()
  
-logger.info("Loaded {} files".format(counter))
-logger.info("Found {} empty files".format(len(empty_files)))
-if empty_files:
-    logger.info("Empty files:")
-    for f in empty_files:
-        logger.info(" >>> {}".format(f))
+logger.info("Loaded {} files".format(file_counter))
