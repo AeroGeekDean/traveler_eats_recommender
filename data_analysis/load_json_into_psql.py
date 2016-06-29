@@ -20,8 +20,6 @@ except:
   
 
 def load_json_into_psql(json_path):
-    # json_path = 'test_data'
-    # json_path = '/Users/deanliu/git/GalvanizeDSI/capstone_project/data/Yelp/yelp_dataset_challenge_academic_dataset'
 
     # connect once to setup the database 'temp'
     dbconn = pg.connect(user='deanliu', host='localhost', port='5432')
@@ -55,10 +53,8 @@ def load_json_into_psql(json_path):
             for line_count, js_line in enumerate(js_file):
                 bar_progress+=len(js_line)
                 bar.update(bar_progress)
-
                 js = json.loads(js_line)
                 js_type = js.pop('type')
-
                 if js_type == 'checkin':
                     parse_checkin(cursor, js)
                 elif js_type == 'business':
@@ -75,20 +71,31 @@ def load_json_into_psql(json_path):
         dbconn.commit() # <--- commit at end of each file. this line saved my butt!
 
     # create new table 'user_reviews' that merges reviews with business table
-    # cursor.execute('''  SELECT r.data->>'user_id' AS user_id,
-    #                         r.data->>'business_id' AS business_id,
-    #                         b.data->>'name' AS business_name,
-    #                         r.data->>'stars' AS stars,
-    #                         b.data->>'review_count' AS review_count,
-    #                         concat(b.data->>'city',', ', b.data->>'state') AS locale
-    #                     INTO user_reviews
-    #                     FROM reviews AS r
-    #                     JOIN businesses AS b
-    #                         ON r.data->>'business_id' = b.data->>'business_id'
-    #                     WHERE (b.data->'categories' @> '["Restaurants"]'::jsonb);
-    #                 ''')
+    cursor.execute('''  SELECT  r.user_id AS user_id,
+                                r.biz_id AS business_id,
+                                b.name AS business_name,
+                                r.stars AS stars,
+                            concat(b.data->>'city',', ', b.data->>'state') AS locale
+                        INTO user_reviews
+                        FROM reviews AS r
+                        JOIN businesses AS b
+                            ON r.biz_id = b.biz_id
+                        WHERE (b.categories @> '["Restaurants"]'::jsonb);
+                    ''')
+    dbconn.commit()
 
-    # create new able 'biz_data'
+    # save user_reviews table to file
+    fout = open('temp_user_reviews.csv', 'w')
+    cursor.copy_expert('COPY user_reviews TO STDOUT WITH CSV HEADER', fout)
+    fout.close()
+
+    # save selected business data to file (for item_data in recommender use)
+    # fout = open('temp_biz_data.csv', 'w')
+    # cursor.copy_expert('''COPY (
+    #                             SELECT biz_id, name, categories, attributes, 
+    #                             FROM businesses
+    #                     ) TO STDOUT WITH CSV HEADER''', fout)
+    # fout.close()
 
     dbconn.commit()
     dbconn.close()
@@ -107,13 +114,13 @@ def create_tables(cursor):
                          data JSONB NOT NULL);''')
 
     cursor.execute('''CREATE TABLE reviews
-                        (id SERIAL PRIMARY KEY,
+                        (review_id CHAR(22) PRIMARY KEY,
                          biz_id CHAR(22),
                          user_id CHAR(22),
                          stars NUMERIC,
                          rv_txt TEXT,
                          rv_date DATE,
-                         data JSONB);''')
+                         votes JSONB);''')
 
     cursor.execute('''CREATE TABLE tips
                         (id SERIAL PRIMARY KEY, data JSONB NOT NULL);''')
@@ -142,15 +149,16 @@ def parse_business(cursor, js):
     return
 
 def parse_review(cursor, js):
+    review_id   = js.pop('review_id')
     biz_id      = js.pop('business_id')
     user_id     = js.pop('user_id')
     stars       = js.pop('stars')
     rv_txt      = js.pop('text')
     rv_date     = js.pop('date')
-    data        = json.dumps(js)
-    cursor.execute('''INSERT INTO reviews(biz_id, user_id, stars, rv_txt, rv_date, data)
-                        VALUES (%s, %s, %s, %s, %s, %s);''', \
-                    (biz_id, user_id, stars, rv_txt, rv_date, data) )
+    votes        = json.dumps(js.pop('votes'))
+    cursor.execute('''INSERT INTO reviews(review_id, biz_id, user_id, stars, rv_txt, rv_date, votes)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s);''', \
+                    (review_id, biz_id, user_id, stars, rv_txt, rv_date, votes) )
     return
 
 def parse_tip(cursor, js):
