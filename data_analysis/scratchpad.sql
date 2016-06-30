@@ -13,7 +13,6 @@ WHERE (b.data->'categories' @> '["Restaurants"]'::jsonb);
 
    OR (b.data->'categories' @> '["Food"]'::jsonb);
 
-
 #-------------
 # Once a new (user_reviews) table has been created...
 
@@ -87,4 +86,11 @@ FROM user_reviews AS ur
   JOIN businesses AS b
   ON ur.business_id = b.data->>'business_id'
 WHERE (b.data->'categories' @> '["Restaurants"]'::jsonb);
+
+
+
+
+
+SELECT
+FROM businesses
 
