@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # Adopted from http://blog.endpoint.com/2016/03/loading-json-files-into-postgresql-95.html
  
-import os, argparse
-import sys
+import os, sys, argparse
 import json
  
 try:
     import psycopg2 as pg
-    import psycopg2.extras
 except:
     print "Install psycopg2"
     exit(123)
@@ -21,7 +19,8 @@ except:
 
 def load_json_into_psql(json_path):
 
-    # connect once to setup the database 'temp'
+    # connect once to setup the 'temp' database
+    # IF a 'temp' database already exist, IT WILL BE DELETED!!
     dbconn = pg.connect(user='deanliu', host='localhost', port='5432')
     dbconn.autocommit = True
     cursor = dbconn.cursor()
@@ -36,7 +35,7 @@ def load_json_into_psql(json_path):
 
     create_tables(cursor)
 
-    # look for json files in path
+    # look for json files in the path
     print 'Searching for json files at path: {}'.format(os.path.abspath(json_path))
     files = [f for f in os.listdir(json_path) if os.path.isfile(os.path.join(json_path, f))]
     json_files = [f for f in files if f.endswith('.json')]
@@ -46,14 +45,15 @@ def load_json_into_psql(json_path):
     for file_count, f in enumerate(json_files):
         fname = os.path.join(json_path, f)
         print 'Processing file #{}: {}'.format(file_count+1, fname)
-        bar = progressbar.ProgressBar(max_value = os.path.getsize(fname), 
-                    widgets=[' [', progressbar.Timer(), '] ', progressbar.Bar(), ' (', progressbar.ETA(), ')'] )
-        bar_progress = 0
+        bar = progressbar.ProgressBar( max_value = os.path.getsize(fname), 
+                                        widgets = [' [', progressbar.Timer(), '] ',
+                                                   progressbar.Bar(),
+                                                   ' (', progressbar.ETA(), ')'] )
+        progress = 0
         with open(fname) as js_file:
-            for line_count, js_line in enumerate(js_file):
-                bar_progress+=len(js_line)
-                bar.update(bar_progress)
+            for js_line in js_file:
                 js = json.loads(js_line)
+
                 js_type = js.pop('type')
                 if js_type == 'checkin':
                     parse_checkin(cursor, js)
@@ -67,38 +67,16 @@ def load_json_into_psql(json_path):
                     parse_user(cursor, js)
                 else: # no js_typ match, FAULT!
                     pass
+
+                progress+=len(js_line)
+                bar.update(progress)
         bar.finish()
         dbconn.commit() # <--- commit at end of each file. this line saved my butt!
 
-    # create new table 'user_reviews' that merges reviews with business table
-    cursor.execute('''  SELECT  r.user_id AS user_id,
-                                r.biz_id AS business_id,
-                                b.name AS business_name,
-                                r.stars AS stars,
-                            concat(b.data->>'city',', ', b.data->>'state') AS locale
-                        INTO user_reviews
-                        FROM reviews AS r
-                        JOIN businesses AS b
-                            ON r.biz_id = b.biz_id
-                        WHERE (b.categories @> '["Restaurants"]'::jsonb);
-                    ''')
-    dbconn.commit()
-
-    # save user_reviews table to file
-    fout = open('temp_user_reviews.csv', 'w')
-    cursor.copy_expert('COPY user_reviews TO STDOUT WITH CSV HEADER', fout)
-    fout.close()
-
-    # save selected business data to file (for item_data in recommender use)
-    # fout = open('temp_biz_data.csv', 'w')
-    # cursor.copy_expert('''COPY (
-    #                             SELECT biz_id, name, categories, attributes, 
-    #                             FROM businesses
-    #                     ) TO STDOUT WITH CSV HEADER''', fout)
-    # fout.close()
-
+    create_user_reviews_table(cursor)
     dbconn.commit()
     dbconn.close()
+
     return
 
 def create_tables(cursor):
@@ -174,6 +152,35 @@ def parse_user(cursor, js):
     cursor.execute('INSERT INTO users VALUES (%s, %s, %s, %s, %s);', \
                     (user_id, name, rv_cnt, friends, data) )
     return
+
+def create_user_reviews_table(cursor):
+    # create new table 'user_reviews' that merges reviews with business table
+    cursor.execute('''  SELECT  r.user_id AS user_id,
+                                r.biz_id AS business_id,
+                                b.name AS business_name,
+                                r.stars AS stars,
+                            concat(b.data->>'city',', ', b.data->>'state') AS locale
+                        INTO user_reviews
+                        FROM reviews AS r
+                        JOIN businesses AS b
+                            ON r.biz_id = b.biz_id
+                        WHERE (b.categories @> '["Restaurants"]'::jsonb);
+                    ''')
+
+    # save user_reviews table to file
+    fout = open('temp_user_reviews.csv', 'w')
+    cursor.copy_expert('COPY user_reviews TO STDOUT WITH CSV HEADER', fout)
+    fout.close()
+
+    # save selected business data to file (for item_data in recommender use)
+    # fout = open('temp_biz_data.csv', 'w')
+    # cursor.copy_expert('''COPY (SELECT biz_id, name, categories, attributes, 
+    #                             FROM businesses
+    #                             ) TO STDOUT WITH CSV HEADER''', fout)
+    # fout.close()
+
+    return
+
 
 # This is the standard boilerplate that calls the main() function.
 if __name__ == '__main__':
