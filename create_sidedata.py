@@ -20,13 +20,18 @@ def create_sidedata():
         dfb = pd.DataFrame(js_list_filtered)
 
     #--- attributes ---
-    # handle the attribute field...
+    # handle the attribute field
+    # which contains nested json fields...
     df_att = pd.io.json.json_normalize(dfb['attributes'])
     df_att.columns = ['Attributes.'+col for col in df_att.columns]
-
     # NOTE: TONS of NaN/Null in attribute data!!!
 
     #--- categories ---
+    # handle the categories field, which is a flat list of categories.
+    # The data has already been filtered down by having 'Restaurants' in the field.
+    # Found hint/solution here:
+    # http://datascience.stackexchange.com/questions/8253/how-to-binary-encode-multi-valued-categorical-variable-from-pandas-dataframe
+    
     # apply collections.counter() to get a dict of hashable objects...
     dfb_cat_dict = dfb['categories'].apply(Counter)
     df_cat_full = pd.DataFrame.from_records(dfb_cat_dict).fillna(value=0).astype(int)
@@ -53,7 +58,7 @@ def create_sidedata():
         'Public Services & Government', 'Real Estate', 'Shopping', 'Shopping Centers', 'Soccer',
         'Social Clubs', 'Specialty Schools', 'Sporting Goods', 'Sports Clubs', 'Sports Wear',
         'Street Vendors', 'Swimming Pools', 'Tea Rooms', 'Tours', 'Toy Stores', 'Travel Services',
-        'Venues & Event Spaces', 'Wine Bars', 'Yoga']
+        'Venues & Event Spaces', 'Wine Bars', 'Yoga', 'Restaurants']
 
     # Drop the categories in the exclusion list
     df_cat = df_cat_full.drop(exclude_cat, axis=1)
