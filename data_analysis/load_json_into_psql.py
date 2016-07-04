@@ -13,7 +13,8 @@ except:
 try:
     import progressbar
 except:
-    print "Install progressbar2"
+    print "Install progressbar2 (by Rick van Hattem (Wolph)!"
+    print "$ pip install progressbar2"
     exit(123)
   
 
@@ -45,9 +46,10 @@ def load_json_into_psql(json_path):
     for file_count, f in enumerate(json_files):
         fname = os.path.join(json_path, f)
         print 'Processing file #{}: {}'.format(file_count+1, fname)
-        bar = progressbar.ProgressBar( max_value = os.path.getsize(fname), 
-                                        widgets = [' [', progressbar.Timer(), '] ',
-                                                   progressbar.Bar(),
+        progress_max = os.path.getsize(fname)
+        bar = progressbar.ProgressBar( max_value = progress_max, \
+                                        widgets = [' [', progressbar.Timer(), '] ', \
+                                                   progressbar.Bar(), \
                                                    ' (', progressbar.ETA(), ')'] )
         progress = 0
         with open(fname) as js_file:
@@ -69,6 +71,7 @@ def load_json_into_psql(json_path):
                     pass
 
                 progress+=len(js_line)
+                # print 'progress = ', progress, '/', progress_max
                 bar.update(progress)
         bar.finish()
         dbconn.commit() # <--- commit at end of each file. this line saved my butt!
@@ -113,6 +116,7 @@ def create_tables(cursor):
 
 def parse_checkin(cursor, js):
     cursor.execute('INSERT INTO checkins(data) VALUES (%s);', [json.dumps(js)] )
+#   data: [ 'business_id', 'checkin_info']
     return
 
 def parse_business(cursor, js):
@@ -122,6 +126,9 @@ def parse_business(cursor, js):
     attributes  = json.dumps(js.pop('attributes'))
     hours       = json.dumps(js.pop('hours'))
     data        = json.dumps(js)
+#   data: [ 'full_address', 'city', 'state',
+#           'neighborhoods', 'latitude', 'longitude',
+#           'review_count', 'stars']
     cursor.execute('INSERT INTO businesses VALUES (%s, %s, %s, %s, %s, %s);', \
                     (biz_id, name, categories, attributes, hours, data) )
     return
@@ -134,6 +141,7 @@ def parse_review(cursor, js):
     rv_txt      = js.pop('text')
     rv_date     = js.pop('date')
     votes        = json.dumps(js.pop('votes'))
+#   votes: [ 'funny', userful', 'cool' ]
     cursor.execute('''INSERT INTO reviews(review_id, biz_id, user_id, stars, rv_txt, rv_date, votes)
                         VALUES (%s, %s, %s, %s, %s, %s, %s);''', \
                     (review_id, biz_id, user_id, stars, rv_txt, rv_date, votes) )
@@ -141,6 +149,7 @@ def parse_review(cursor, js):
 
 def parse_tip(cursor, js):
     cursor.execute('INSERT INTO tips(data) VALUES (%s);', [json.dumps(js)] )
+#   data: ['business_id', 'user_id', 'date', 'likes', 'text']
     return
 
 def parse_user(cursor, js):
@@ -149,6 +158,10 @@ def parse_user(cursor, js):
     rv_cnt  = js.pop('review_count')
     friends = json.dumps(js.pop('friends'))
     data    = json.dumps(js)
+#   data: [ 'elite: [years] ', 'yelping_since', 'fans', 'average_stars',
+#           'votes: ['funny', 'userful', 'cool'] ',
+#           'compliments: ['profile', 'cute', 'funny', 'plain', writer',
+#                          'note', 'photos', 'hot', 'cool', 'more'] ' ]
     cursor.execute('INSERT INTO users VALUES (%s, %s, %s, %s, %s);', \
                     (user_id, name, rv_cnt, friends, data) )
     return

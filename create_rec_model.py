@@ -7,7 +7,7 @@ from create_sidedata import create_sidedata
 def create_rec_model():
    # load observation data into Pandas DF
    df = pd.read_csv('data_analysis/user_reviews.csv', header=None,
-                    names=['user_id', 'business_id', 'biz_name', 'stars', 'locale'])
+                    names=['user_id', 'business_id', 'business_name', 'stars', 'locale'])
 
    # store the observation data in Graphlab's SFrame type
    sf_obs = gl.SFrame( df[['user_id', 'business_id', 'stars']] )
@@ -15,10 +15,10 @@ def create_rec_model():
    sf_itemdata = create_sidedata()
 
    # split the test data via Graphlab's recommender tailored splitter function
-   train_set, test_set = gl.recommender.util.random_split_by_user(sf_obs,
-                                                                  'user_id',
-                                                                  'business_id',
-                                                                  max_num_users=100)
+   # train_set, test_set = gl.recommender.util.random_split_by_user(sf_obs,
+   #                                                                'user_id',
+   #                                                                'business_id',
+   #                                                                max_num_users=100)
 
    # create the recommender (will train during this step)
    rec = gl.recommender.factorization_recommender.create(

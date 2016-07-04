@@ -5,9 +5,8 @@ SELECT r.data->>'user_id' AS user_id,
        b.data->>'name' AS business_name,
        r.data->>'stars' AS stars,
        concat(b.data->>'city',', ', b.data->>'state') AS locale
-INTO user_reviews
-FROM reviews AS r
-JOIN businesses AS b
+      INTO user_reviews
+FROM reviews AS r JOIN businesses AS b
 ON r.data->>'business_id' = b.data->>'business_id'
 WHERE (b.data->'categories' @> '["Restaurants"]'::jsonb);
 
@@ -88,9 +87,33 @@ FROM user_reviews AS ur
 WHERE (b.data->'categories' @> '["Restaurants"]'::jsonb);
 
 
+# ==== reviewed restaurant mapping ====
+WITH ur AS (SELECT DISTINCT business_id FROM user_reviews)
+SELECT b.name,
+       b.biz_id,
+       cast(b.data->>'stars' as numeric) AS stars,
+       b.data AS json_data,
+       cast(b.data->>'review_count' as numeric) AS review_count,
+       round(cast(b.data->>'latitude' as numeric), 6) AS latitude,
+       round(cast(b.data->>'longitude' as numeric), 6) as longitude
+  INTO reviewed_restaurants
+FROM businesses AS b JOIN ur
+  ON ur.business_id = b.biz_id;
+ORDER BY review_count DESC;
+LIMIT 5;
+
+# to save from PSQL:
+copy reviewed_restaurants to '<path>/reviewed_restaurants.csv' delimiter ',' CSV HEADER;
+#=======================================
 
 
-
-SELECT
-FROM businesses
-
+# query on CartoDB...
+WITH tmp AS
+(SELECT business_id
+ FROM reviews
+ WHERE user_id = 'b0jSP2vzSCJAvVlg_vxwtQ'
+)
+SELECT *
+FROM reviewed_restaurants AS r
+JOIN tmp
+ON r.biz_id = tmp.business_id
