@@ -117,3 +117,5 @@ SELECT *
 FROM reviewed_restaurants AS r
 JOIN tmp
 ON r.biz_id = tmp.business_id
+
+

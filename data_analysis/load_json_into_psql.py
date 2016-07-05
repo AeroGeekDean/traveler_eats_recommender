@@ -58,15 +58,20 @@ def load_json_into_psql(json_path):
 
                 js_type = js.pop('type')
                 if js_type == 'checkin':
-                    parse_checkin(cursor, js)
+                    # parse_checkin(cursor, js)
+                    pass
                 elif js_type == 'business':
                     parse_business(cursor, js)
+                    pass
                 elif js_type == 'review':
                     parse_review(cursor, js)
+                    pass
                 elif js_type == 'tip':
-                    parse_tip(cursor, js)
+                    # parse_tip(cursor, js)
+                    pass
                 elif js_type == 'user':
                     parse_user(cursor, js)
+                    pass
                 else: # no js_typ match, FAULT!
                     pass
 
@@ -83,8 +88,8 @@ def load_json_into_psql(json_path):
     return
 
 def create_tables(cursor):
-    cursor.execute('''CREATE TABLE checkins
-                        (id SERIAL PRIMARY KEY, data JSONB NOT NULL);''')
+    # cursor.execute('''CREATE TABLE checkins
+    #                     (id SERIAL PRIMARY KEY, data JSONB NOT NULL);''')
 
     cursor.execute('''CREATE TABLE businesses
                         (biz_id CHAR(22) PRIMARY KEY,
@@ -103,8 +108,8 @@ def create_tables(cursor):
                          rv_date DATE,
                          votes JSONB);''')
 
-    cursor.execute('''CREATE TABLE tips
-                        (id SERIAL PRIMARY KEY, data JSONB NOT NULL);''')
+    # cursor.execute('''CREATE TABLE tips
+    #                     (id SERIAL PRIMARY KEY, data JSONB NOT NULL);''')
 
     cursor.execute('''CREATE TABLE users
                         (user_id CHAR(22) PRIMARY KEY,
@@ -167,18 +172,27 @@ def parse_user(cursor, js):
     return
 
 def create_user_reviews_table(cursor):
-    # create new table 'user_reviews' that merges reviews with business table
+    # create new table 'user_reviews' that contains ONLY restaurant reviews
     cursor.execute('''  SELECT  r.user_id AS user_id,
                                 r.biz_id AS business_id,
-                                b.name AS business_name,
-                                r.stars AS stars,
-                            concat(b.data->>'city',', ', b.data->>'state') AS locale
+                                r.stars AS stars
                         INTO user_reviews
                         FROM reviews AS r
                         JOIN businesses AS b
                             ON r.biz_id = b.biz_id
                         WHERE (b.categories @> '["Restaurants"]'::jsonb);
                     ''')
+    # cursor.execute('''  SELECT  r.user_id AS user_id,
+    #                             r.biz_id AS business_id,
+    #                             b.name AS business_name,
+    #                             r.stars AS stars,
+    #                         concat(b.data->>'city',', ', b.data->>'state') AS locale
+    #                     INTO user_reviews
+    #                     FROM reviews AS r
+    #                     JOIN businesses AS b
+    #                         ON r.biz_id = b.biz_id
+    #                     WHERE (b.categories @> '["Restaurants"]'::jsonb);
+    #                 ''')
 
     # save user_reviews table to file
     fout = open('temp_user_reviews.csv', 'w')

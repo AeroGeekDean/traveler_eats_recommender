@@ -16,6 +16,7 @@ print 'creating groupby tables...'
 sf_reviews_by_user = sf_obs.groupby('user_id', [gl.aggregate.COUNT()]) \
                            .sort('Count', ascending=False)
 print 'created sf_reviews_by_user...'
+
 # table of unique user-restaurant pair data
 # some users reviewed SAME restaurant multiple times!!!
 sf_unique_user_items = sf_obs.groupby(['user_id', 'business_id'],
