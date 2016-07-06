@@ -120,7 +120,7 @@ class Recommend(object):
     print '>> Finding a list of similar users to the test user...'
     if user_id==None:
       user_id = self.test_user['user_id']
-    print "test_user[{}] = {}".format(user_id, )
+    print "test_user = {}".format(user_id)
     num_users = 20
     self.similar_users = self.rec_model.get_similar_users([user_id],k=num_users)
     return self.similar_users
